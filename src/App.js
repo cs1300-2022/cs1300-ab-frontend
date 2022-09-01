@@ -57,9 +57,9 @@ const menu = [
         price: "2.50",
       },
       {
-        name: "Milk",
-        description: "From our local Rhode Island farmers",
-        image: "",
+        name: "Soy Milk",
+        description: "Creamy and smooth soy milk",
+        image: "./images/cs_soymilk.jpg",
         price: "1.50",
       },
     ],
@@ -81,6 +81,8 @@ export class App extends Component {
         },
       },
       telemetry_online: null,
+      cart_visible: false,
+      modal_visible: false,
     };
   }
 
@@ -190,26 +192,27 @@ export class App extends Component {
   };
 
   addAction = (action) => {
-    return new Promise((resolve) => this.setState(
-      {
-        telemetry_data: {
-          ...this.state.telemetry_data,
-          data: {
-            ...this.state.telemetry_data.data,
-            actions: [
-              ...this.state.telemetry_data.data.actions,
-              { timestamp: Date.now(), action: action },
-            ],
+    return new Promise((resolve) =>
+      this.setState(
+        {
+          telemetry_data: {
+            ...this.state.telemetry_data,
+            data: {
+              ...this.state.telemetry_data.data,
+              actions: [
+                ...this.state.telemetry_data.data.actions,
+                { timestamp: Date.now(), action: action },
+              ],
+            },
           },
         },
-      },
-      () => {
-        this.saveCookies();
-        this.sendTelemetry();
-        resolve();
-      }
-    ));
-    
+        () => {
+          this.saveCookies();
+          this.sendTelemetry();
+          resolve();
+        }
+      )
+    );
   };
 
   generateUID = () => {
@@ -224,12 +227,140 @@ export class App extends Component {
   checkout = () => {
     this.addAction("checkout").then(() => {
       // clear cookies
-      console.log("checkout")
       cookies.remove("telemetry_data");
     });
-  }
+  };
+
+  toggleCartPopup = (to_on) => {
+    if (to_on === undefined) {
+      this.setState({
+        cart_visible: !this.state.cart_visible,
+      });
+    } else if (to_on) {
+      this.setState({
+        cart_visible: true,
+      });
+    } else {
+      this.setState({
+        cart_visible: false,
+      });
+    }
+  };
+
+  toggleModal = (to_on) => {
+    if (to_on === undefined) {
+      this.setState({
+        modal_visible: !this.state.modal_visible,
+      });
+    } else if (to_on) {
+      this.setState({
+        modal_visible: true,
+      });
+    } else {
+      this.setState({
+        modal_visible: false,
+      });
+    }
+  };
+
+  setModalContent = (id) => {
+    this.setState({
+      modal_content: id,
+    });
+  };
+
+  ShoppingCart = (props) => {
+    return (
+      <div className={"flex flex-col w-96 " + (props.fixedY ? "" : "h-full")}>
+        <div className="flex bg-gray-900 text-white font-medium p-4 items-center">
+          <div className="flex-1 text-center">Shopping Cart</div>
+          <button
+            className={
+              this.state.telemetry_data.version === "a" ? "hidden" : ""
+            }
+            onClick={() => this.toggleCartPopup(false)}
+          >
+            <svg className="w-6 h-6" viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div
+          className={
+            "p-8 bg-white overflow-y-auto " +
+            (props.fixedY ? "h-[28rem]" : "flex-1")
+          }
+        >
+          <div className="flex flex-col">
+            {Object.keys(this.state.telemetry_data.data.cart).length === 0 ? (
+              <div className="py-2 text-center">Your cart's empty.</div>
+            ) : null}
+            {Object.keys(this.state.telemetry_data.data.cart).map((key) => {
+              let [sectionid, itemid] = key.split("-");
+              let item = menu[sectionid].items[itemid];
+              return (
+                <div className="flex flex-col mb-2" key={`cart-${key}`}>
+                  <div className="flex flex-row flex-1 py-2">
+                    <p className="font-bold flex-1">{item.name}</p>
+                    <p className="text-gray-900 font-medium">
+                      {`$${item.price} x ${this.state.telemetry_data.data.cart[key]}`}
+                    </p>
+                  </div>
+                  <div className="h-8 w-24 flex items-center">
+                    <div className="w-full text-gray-700 text-sm font-semibold">
+                      Quantity:
+                    </div>
+                    <div className="flex flex-row h-8 w-full rounded-lg relative bg-transparent ml-4">
+                      <button
+                        className=" bg-gray-300 text-gray-600 hover:text-gray-700 hover:bg-gray-400 h-full w-20 rounded-l cursor-pointer outline-none"
+                        onClick={() => this.updateCart(sectionid, itemid, -1)}
+                      >
+                        <span className="m-auto text-2xl font-light">−</span>
+                      </button>
+                      <div className="outline-none text-center w-full bg-gray-300 font-semibold text-md hover:text-black focus:text-black text-gray-700 leading-[2rem]">
+                        {this.state.telemetry_data.data.cart[key]}
+                      </div>
+                      <button
+                        className="bg-gray-300 text-gray-600 hover:text-gray-700 hover:bg-gray-400 h-full w-20 rounded-r cursor-pointer"
+                        onClick={() => this.updateCart(sectionid, itemid, 1)}
+                      >
+                        <span className="m-auto text-2xl font-light">+</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="p-8 bg-white">
+          {/* Cumulative cart total */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex-1 text-gray-900 font-medium">Order Total:</div>
+            <div className="flex-1 text-right text-gray-900 font-medium">
+              {`$${this.state.telemetry_data.data.cart_total}`}
+            </div>
+          </div>
+          <button
+            className="bg-black text-white font-medium py-3 w-full hover:bg-gray-800 transition-all duration-75"
+            onClick={() => this.checkout()}
+          >
+            Checkout
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   render() {
+    if (this.state.modal_visible || this.state.cart_visible) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
     return (
       <div className="flex">
         <div className="flex self-start top-0 flex-col w-64 flex-none bg-black h-screen sticky">
@@ -260,11 +391,66 @@ export class App extends Component {
             <div className="flex-1"></div>
             <button
               className="px-2 py-1 text-xs text-red-500 bg-opacity-25 rounded-full bg-red-500 ml-2"
-              onClick={() => cookies.remove("telemetry_data")}
+              onClick={() => {
+                cookies.remove("telemetry_data");
+                window.location.reload();
+              }}
             >
               Reset
             </button>
           </div>
+        </div>
+        {/* Shopping cart icon for version B */}
+        <button
+          className={
+            "fixed flex items-center justify-center w-14 h-14 top-0 right-0 mr-8 mt-8 bg-black rounded-full hover:bg-gray-800 transition-all duration-100 " +
+            (this.state.telemetry_data.version === "a" ? "hidden" : "")
+          }
+          onClick={() => this.toggleCartPopup(true)}
+        >
+          <div className="relative inline-block">
+            <svg className="w-8 h-8 text-white" viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M17,18C15.89,18 15,18.89 15,20A2,2 0 0,0 17,22A2,2 0 0,0 19,20C19,18.89 18.1,18 17,18M1,2V4H3L6.6,11.59L5.24,14.04C5.09,14.32 5,14.65 5,15A2,2 0 0,0 7,17H19V15H7.42A0.25,0.25 0 0,1 7.17,14.75C7.17,14.7 7.18,14.66 7.2,14.63L8.1,13H15.55C16.3,13 16.96,12.58 17.3,11.97L20.88,5.5C20.95,5.34 21,5.17 21,5A1,1 0 0,0 20,4H5.21L4.27,2M7,18C5.89,18 5,18.89 5,20A2,2 0 0,0 7,22A2,2 0 0,0 9,20C9,18.89 8.1,18 7,18Z"
+              />
+            </svg>
+            <span
+              className={
+                "absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full " +
+                (Object.keys(this.state.telemetry_data.data.cart).length === 0
+                  ? "hidden"
+                  : "")
+              }
+            >
+              {Object.keys(this.state.telemetry_data.data.cart).length > 0
+                ? Object.values(this.state.telemetry_data.data.cart).reduce(
+                    (a, b) => a + b
+                  )
+                : 0}
+            </span>
+          </div>
+        </button>
+        <div
+          className={
+            "fixed top-0 left-0 bottom-0 right-0 bg-black z-10 transition-all duration-200 " +
+            (this.state.cart_visible || this.state.modal_visible
+              ? "opacity-50"
+              : "opacity-0 pointer-events-none")
+          }
+          onClick={() => {
+            this.toggleCartPopup(false);
+            this.toggleModal(false);
+          }}
+        ></div>
+        <div
+          className={
+            "transform top-0 right-0 w-96 bg-white fixed h-full overflow-auto ease-in-out transition-all duration-300 z-30 " +
+            (this.state.telemetry_data.version === "a" ? "hidden " : "") +
+            (this.state.cart_visible ? "translate-x-0" : "translate-x-full")
+          }
+        >
+          <this.ShoppingCart />
         </div>
         <div className="flex flex-1 bg-gray-200 py-16">
           <div className="px-36 min-h-screen bg-gray-200 max-w-6xl">
@@ -291,7 +477,14 @@ export class App extends Component {
                           <p className="flex-1 text-gray-900 font-medium mt-2">
                             ${item.price}
                           </p>
-                          <div className="flex justify-center items-center">
+                          <div
+                            className={
+                              "flex justify-center items-center " +
+                              (this.state.telemetry_data.version === "b"
+                                ? "hidden"
+                                : "")
+                            }
+                          >
                             <svg
                               className="h-6 w-6 text-gray-400 group-hover:text-[#c75260] transition-all duration-100"
                               viewBox="0 0 24 24"
@@ -316,85 +509,15 @@ export class App extends Component {
               </div>
             ))}
           </div>
-          <div className="self-start sticky top-0">
+          <div
+            className={
+              "self-start sticky top-0 " +
+              (this.state.telemetry_data.version === "b" ? "hidden" : "")
+            }
+          >
             <p className="font-bold text-5xl">&nbsp;</p>
             <p className="font-medium text-4xl mt-12 mb-8">&nbsp;</p>
-            <div className="flex flex-col w-96">
-              <div className="bg-gray-900 text-white font-medium text-center p-4">
-                Shopping Cart
-              </div>
-              <div className="p-8 bg-white h-[28rem] overflow-y-auto">
-                <div className="flex flex-col">
-                  {Object.keys(this.state.telemetry_data.data.cart).length ===
-                  0 ? (
-                    <div className="py-2 text-center">Your cart's empty.</div>
-                  ) : null}
-                  {Object.keys(this.state.telemetry_data.data.cart).map(
-                    (key) => {
-                      let [sectionid, itemid] = key.split("-");
-                      let item = menu[sectionid].items[itemid];
-                      return (
-                        <div className="flex flex-col mb-2" key={`cart-${key}`}>
-                          <div className="flex flex-row flex-1 py-2">
-                            <p className="font-bold flex-1">{item.name}</p>
-                            <p className="text-gray-900 font-medium">
-                              {`$${item.price} x ${this.state.telemetry_data.data.cart[key]}`}
-                            </p>
-                          </div>
-                          <div className="h-8 w-24 flex items-center">
-                            <div className="w-full text-gray-700 text-sm font-semibold">
-                              Quantity:
-                            </div>
-                            <div className="flex flex-row h-8 w-full rounded-lg relative bg-transparent ml-4">
-                              <button
-                                className=" bg-gray-300 text-gray-600 hover:text-gray-700 hover:bg-gray-400 h-full w-20 rounded-l cursor-pointer outline-none"
-                                onClick={() =>
-                                  this.updateCart(sectionid, itemid, -1)
-                                }
-                              >
-                                <span className="m-auto text-2xl font-light">
-                                  −
-                                </span>
-                              </button>
-                              <div className="outline-none text-center w-full bg-gray-300 font-semibold text-md hover:text-black focus:text-black text-gray-700 leading-[2rem]">
-                                {this.state.telemetry_data.data.cart[key]}
-                              </div>
-                              <button
-                                className="bg-gray-300 text-gray-600 hover:text-gray-700 hover:bg-gray-400 h-full w-20 rounded-r cursor-pointer"
-                                onClick={() =>
-                                  this.updateCart(sectionid, itemid, 1)
-                                }
-                              >
-                                <span className="m-auto text-2xl font-light">
-                                  +
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-              <div className="p-8 bg-white">
-                {/* Cumulative cart total */}
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex-1 text-gray-900 font-medium">
-                    Order Total:
-                  </div>
-                  <div className="flex-1 text-right text-gray-900 font-medium">
-                    {`$${this.state.telemetry_data.data.cart_total}`}
-                  </div>
-                </div>
-                <button
-                  className="bg-black text-white font-medium py-3 w-full hover:bg-gray-800 transition-all duration-75"
-                  onClick={() => this.checkout()}
-                >
-                  Checkout
-                </button>
-              </div>
-            </div>
+            <this.ShoppingCart fixedY={true} />
           </div>
         </div>
       </div>
