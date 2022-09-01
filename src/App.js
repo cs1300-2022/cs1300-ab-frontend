@@ -2,7 +2,7 @@ import React, { Component } from "react";
 import axios from "axios";
 import Logo from "./assets/logo.svg";
 import Cookies from "universal-cookie";
-import toast, { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from "react-hot-toast";
 
 const cookies = new Cookies();
 
@@ -68,6 +68,35 @@ const menu = [
 ];
 
 const versions = ["a", "b"];
+
+const TelemetryStatus = {
+  ONLINE: {
+    name: "Telemetry Online",
+    bg_color: "bg-green-500",
+    text_color: "text-green-500",
+  },
+  OFFLINE: {
+    name: "Telemetry Offline",
+    bg_color: "bg-red-500",
+    text_color: "text-red-500",
+  },
+  ERROR: {
+    name: "Telemetry Error",
+    bg_color: "bg-orange-500",
+    text_color: "text-orange-500",
+  },
+  CONNECTING: {
+    name: "Telemetry Connecting",
+    bg_color: "bg-blue-500",
+    text_color: "text-sky-500",
+  },
+  SENDING: {
+    name: "Telemetry Sending",
+    bg_color: "bg-blue-500",
+    text_color: "text-sky-500",
+  },
+};
+
 export class App extends Component {
   constructor() {
     super();
@@ -81,7 +110,7 @@ export class App extends Component {
           actions: [],
         },
       },
-      telemetry_online: null,
+      telemetry_status: TelemetryStatus.CONNECTING,
       cart_visible: false,
       modal_visible: false,
       complete: false,
@@ -95,18 +124,18 @@ export class App extends Component {
         const data = res.data;
         if (data === "CS 1300 - User Interfaces and User Experiences") {
           this.setState({
-            telemetry_online: true,
+            telemetry_status: TelemetryStatus.ONLINE,
           });
         } else {
           this.setState({
-            telemetry_online: false,
+            telemetry_status: TelemetryStatus.ERROR,
           });
         }
       })
       .catch((err) => {
         console.log(err);
         this.setState({
-          telemetry_online: false,
+          telemetry_status: TelemetryStatus.OFFLINE,
         });
       });
 
@@ -178,21 +207,24 @@ export class App extends Component {
   };
 
   sendTelemetry = () => {
-    return new Promise((resolve) =>
+    // setting to sending state makes the button flicker, and that's distracting
+    // this.setTelemetryState(TelemetryStatus.SENDING);
+    return new Promise((resolve, reject) =>
       axios
         .post(`http://localhost:3001`, this.state.telemetry_data)
         .then((res) => {
-          this.setState({
-            telemetry_online: true,
-          });
-          resolve(res);
+          if (res.status === 200) {
+            this.setTelemetryState(TelemetryStatus.ONLINE);
+            resolve(res);
+          } else {
+            this.setTelemetryState(TelemetryStatus.ERROR);
+            reject(res);
+          }
         })
         .catch((err) => {
           console.log(err);
-          this.setState({
-            telemetry_online: false,
-          });
-          resolve(err);
+          this.setTelemetryState(TelemetryStatus.ERROR);
+          reject(err);
         })
     );
   };
@@ -203,7 +235,7 @@ export class App extends Component {
   };
 
   addAction = (action) => {
-    return new Promise((resolve) =>
+    return new Promise((resolve, reject) =>
       this.setState(
         {
           telemetry_data: {
@@ -220,7 +252,7 @@ export class App extends Component {
         () => {
           this.saveCookies();
           this.sendTelemetry().then((res) => {
-            resolve(res);
+            reject(res);
           });
         }
       )
@@ -247,7 +279,7 @@ export class App extends Component {
         }
       })
       .catch((err) => {
-        this.setTelemetryState(false);
+        this.setTelemetryState(TelemetryStatus.ERROR);
       });
   };
 
@@ -289,9 +321,9 @@ export class App extends Component {
     });
   };
 
-  setTelemetryState = (online) => {
+  setTelemetryState = (status) => {
     this.setState({
-      telemetry_online: online,
+      telemetry_status: status,
     });
   };
 
@@ -449,24 +481,12 @@ export class App extends Component {
           <div className="my-2">Order Online</div>
           <div className="my-2">Contact</div>
         </div>
-        <div className="p-4 text-gray-400 text-xs text-center">{`UID: ${this.state.telemetry_data.uid}, Version: ${this.state.telemetry_data.version}`}</div>
+        <div className="p-4 text-gray-400 text-xs text-center">
+          {`UID: ${this.state.telemetry_data.uid}, Version: `}
+          <span className="uppercase">{this.state.telemetry_data.version}</span>
+        </div>
         <div className="p-4 flex">
-          {this.state.telemetry_online ? (
-            <div className="flex items-center bg-green-500 bg-opacity-25 text-green-500 text-xs font-medium rounded-full px-2 py-1">
-              Telemetry Online
-              <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-green-500 animate-pulse"></div>
-            </div>
-          ) : this.state.telemetry_online === null ? (
-            <div className="flex items-center bg-blue-500 bg-opacity-25 text-sky-500 text-xs font-medium rounded-full px-2 py-1">
-              Connecting...
-              <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-blue-500 animate-pulse"></div>
-            </div>
-          ) : (
-            <div className="flex items-center bg-red-500 bg-opacity-25 text-red-500 text-xs font-medium rounded-full px-2 py-1">
-              Telemetry Offline / Error
-              <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-red-500 animate-pulse"></div>
-            </div>
-          )}
+          <this.TelemetryIndicator status={this.state.telemetry_status} />
           <div className="flex-1"></div>
           <button
             className="px-2 py-1 text-xs text-red-500 bg-opacity-25 rounded-full bg-red-500 ml-2"
@@ -576,6 +596,27 @@ export class App extends Component {
           Please close this window and do not re-visit this webpage before class
           ends.
         </div>
+      </div>
+    );
+  };
+
+  TelemetryIndicator = (props) => {
+    return (
+      <div
+        className={
+          "flex items-center bg-opacity-25 text-xs font-medium rounded-full px-2 py-1 " +
+          props.status.bg_color +
+          " " +
+          props.status.text_color
+        }
+      >
+        {props.status.name}
+        <div
+          className={
+            "h-2 w-2 rounded-full ml-[0.375rem] animate-pulse " +
+            props.status.bg_color
+          }
+        ></div>
       </div>
     );
   };
