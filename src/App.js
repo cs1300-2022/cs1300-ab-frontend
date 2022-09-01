@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import axios from "axios";
 import Logo from "./assets/logo.svg";
 import Cookies from "universal-cookie";
+import toast, { Toaster } from 'react-hot-toast';
 
 const cookies = new Cookies();
 
@@ -83,6 +84,7 @@ export class App extends Component {
       telemetry_online: null,
       cart_visible: false,
       modal_visible: false,
+      complete: false,
     };
   }
 
@@ -176,14 +178,23 @@ export class App extends Component {
   };
 
   sendTelemetry = () => {
-    axios
-      .post(`http://localhost:3001`, this.state.telemetry_data)
-      .then((res) => {
-        console.log(res);
-      })
-      .catch((err) => {
-        console.log(err);
-      });
+    return new Promise((resolve) =>
+      axios
+        .post(`http://localhost:3001`, this.state.telemetry_data)
+        .then((res) => {
+          this.setState({
+            telemetry_online: true,
+          });
+          resolve(res);
+        })
+        .catch((err) => {
+          console.log(err);
+          this.setState({
+            telemetry_online: false,
+          });
+          resolve(err);
+        })
+    );
   };
 
   getItemPrice = (sectionid, itemid) => {
@@ -208,8 +219,9 @@ export class App extends Component {
         },
         () => {
           this.saveCookies();
-          this.sendTelemetry();
-          resolve();
+          this.sendTelemetry().then((res) => {
+            resolve(res);
+          });
         }
       )
     );
@@ -225,10 +237,18 @@ export class App extends Component {
   };
 
   checkout = () => {
-    this.addAction("checkout").then(() => {
-      // clear cookies
-      cookies.remove("telemetry_data");
-    });
+    this.addAction("checkout")
+      .then((res) => {
+        if (res.status === 200) {
+          cookies.remove("telemetry_data");
+          this.setState({
+            complete: true,
+          });
+        }
+      })
+      .catch((err) => {
+        this.setTelemetryState(false);
+      });
   };
 
   toggleCartPopup = (to_on) => {
@@ -266,6 +286,12 @@ export class App extends Component {
   setModalContent = (id) => {
     this.setState({
       modal_content: id,
+    });
+  };
+
+  setTelemetryState = (online) => {
+    this.setState({
+      telemetry_online: online,
     });
   };
 
@@ -355,51 +381,9 @@ export class App extends Component {
     );
   };
 
-  render() {
-    if (this.state.modal_visible || this.state.cart_visible) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
+  FixedElements = (props) => {
     return (
-      <div className="flex">
-        <div className="flex self-start top-0 flex-col w-64 flex-none bg-black h-screen sticky">
-          <img src={Logo} alt="logo" className="w-full p-6" />
-          <div className="flex flex-1 flex-col p-8 text-white font-medium">
-            <div className="my-2">Our Story</div>
-            <div className="my-2">Order Online</div>
-            <div className="my-2">Contact</div>
-          </div>
-          <div className="p-4 text-gray-400 text-xs text-center">{`UID: ${this.state.telemetry_data.uid}, Version: ${this.state.telemetry_data.version}`}</div>
-          <div className="p-4 flex">
-            {this.state.telemetry_online ? (
-              <div className="flex items-center bg-green-500 bg-opacity-25 text-green-500 text-xs font-medium rounded-full px-2 py-1">
-                Telemetry Online
-                <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-green-500 animate-pulse"></div>
-              </div>
-            ) : this.state.telemetry_online === null ? (
-              <div className="flex items-center bg-blue-500 bg-opacity-25 text-sky-500 text-xs font-medium rounded-full px-2 py-1">
-                Connecting...
-                <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-blue-500 animate-pulse"></div>
-              </div>
-            ) : (
-              <div className="flex items-center bg-red-500 bg-opacity-25 text-red-500 text-xs font-medium rounded-full px-2 py-1">
-                Telemetry Offline / Error
-                <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-red-500 animate-pulse"></div>
-              </div>
-            )}
-            <div className="flex-1"></div>
-            <button
-              className="px-2 py-1 text-xs text-red-500 bg-opacity-25 rounded-full bg-red-500 ml-2"
-              onClick={() => {
-                cookies.remove("telemetry_data");
-                window.location.reload();
-              }}
-            >
-              Reset
-            </button>
-          </div>
-        </div>
+      <>
         {/* Shopping cart icon for version B */}
         <button
           className={
@@ -452,75 +436,171 @@ export class App extends Component {
         >
           <this.ShoppingCart />
         </div>
-        <div className="flex flex-1 bg-gray-200 py-16">
-          <div className="px-36 min-h-screen bg-gray-200 max-w-6xl">
-            <h1 className="font-bold text-5xl">Shop</h1>
-            {menu.map((item, i) => (
-              <div key={`card-${i}`}>
-                <h2 className="font-medium text-4xl mt-12 mb-8">
-                  {item.header}
-                </h2>
+      </>
+    );
+  };
 
-                <div className="grid grid-cols-2 grid-flow-row gap-4">
-                  {item.items.map((item, j) => (
-                    <div
-                      className="flex bg-white rounded-md drop-shadow transition-all duration-100 group hover:bg-gray-100 cursor-pointer overflow-hidden"
-                      onClick={() => this.updateCart(i, j, 1)}
-                      key={`card-${i}-${j}`}
-                    >
-                      <div className="flex flex-col flex-1 px-4 py-2">
-                        <h3 className="font-bold my-2 text-xl">{item.name}</h3>
-                        <p className="flex-1 text-gray-700">
-                          {item.description}
-                        </p>
-                        <div className="flex items-end">
-                          <p className="flex-1 text-gray-900 font-medium mt-2">
-                            ${item.price}
-                          </p>
-                          <div
-                            className={
-                              "flex justify-center items-center " +
-                              (this.state.telemetry_data.version === "b"
-                                ? "hidden"
-                                : "")
-                            }
-                          >
-                            <svg
-                              className="h-6 w-6 text-gray-400 group-hover:text-[#c75260] transition-all duration-100"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                fill="currentColor"
-                                d="M11 9H13V6H16V4H13V1H11V4H8V6H11M7 18C5.9 18 5 18.9 5 20S5.9 22 7 22 9 21.1 9 20 8.1 18 7 18M17 18C15.9 18 15 18.9 15 20S15.9 22 17 22 19 21.1 19 20 18.1 18 17 18M7.2 14.8V14.7L8.1 13H15.5C16.2 13 16.9 12.6 17.2 12L21.1 5L19.4 4L15.5 11H8.5L4.3 2H1V4H3L6.6 11.6L5.2 14C5.1 14.3 5 14.6 5 15C5 16.1 5.9 17 7 17H19V15H7.4C7.3 15 7.2 14.9 7.2 14.8Z"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                      {item.image ? (
-                        <div
-                          className="w-32 h-40 flex-none bg-cover bg-center"
-                          style={{ backgroundImage: `url(${item.image})` }}
-                        ></div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div
-            className={
-              "self-start sticky top-0 " +
-              (this.state.telemetry_data.version === "b" ? "hidden" : "")
-            }
+  SideBar = (props) => {
+    return (
+      <div className="flex self-start top-0 flex-col w-64 flex-none bg-black h-screen sticky">
+        <img src={Logo} alt="logo" className="w-full p-6" />
+        <div className="flex flex-1 flex-col p-8 text-white font-medium">
+          <div className="my-2">Our Story</div>
+          <div className="my-2">Order Online</div>
+          <div className="my-2">Contact</div>
+        </div>
+        <div className="p-4 text-gray-400 text-xs text-center">{`UID: ${this.state.telemetry_data.uid}, Version: ${this.state.telemetry_data.version}`}</div>
+        <div className="p-4 flex">
+          {this.state.telemetry_online ? (
+            <div className="flex items-center bg-green-500 bg-opacity-25 text-green-500 text-xs font-medium rounded-full px-2 py-1">
+              Telemetry Online
+              <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-green-500 animate-pulse"></div>
+            </div>
+          ) : this.state.telemetry_online === null ? (
+            <div className="flex items-center bg-blue-500 bg-opacity-25 text-sky-500 text-xs font-medium rounded-full px-2 py-1">
+              Connecting...
+              <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-blue-500 animate-pulse"></div>
+            </div>
+          ) : (
+            <div className="flex items-center bg-red-500 bg-opacity-25 text-red-500 text-xs font-medium rounded-full px-2 py-1">
+              Telemetry Offline / Error
+              <div className="h-2 w-2 rounded-full ml-[0.375rem] bg-red-500 animate-pulse"></div>
+            </div>
+          )}
+          <div className="flex-1"></div>
+          <button
+            className="px-2 py-1 text-xs text-red-500 bg-opacity-25 rounded-full bg-red-500 ml-2"
+            onClick={() => {
+              cookies.remove("telemetry_data");
+              window.location.reload();
+            }}
           >
-            <p className="font-bold text-5xl">&nbsp;</p>
-            <p className="font-medium text-4xl mt-12 mb-8">&nbsp;</p>
-            <this.ShoppingCart fixedY={true} />
-          </div>
+            Reset
+          </button>
         </div>
       </div>
+    );
+  };
+
+  Shop = (props) => {
+    return (
+      <div className="flex flex-1 bg-gray-200 py-16">
+        <div className="px-36 min-h-screen bg-gray-200 max-w-6xl">
+          <h1 className="font-bold text-5xl">Shop</h1>
+          {menu.map((item, i) => (
+            <div key={`card-${i}`}>
+              <h2 className="font-medium text-4xl mt-12 mb-8">{item.header}</h2>
+
+              <div className="grid grid-cols-2 grid-flow-row gap-4">
+                {item.items.map((item, j) => (
+                  <div
+                    className="flex bg-white rounded-md drop-shadow transition-all duration-100 group hover:bg-gray-100 cursor-pointer overflow-hidden"
+                    onClick={() => this.updateCart(i, j, 1)}
+                    key={`card-${i}-${j}`}
+                  >
+                    <div className="flex flex-col flex-1 px-4 py-2">
+                      <h3 className="font-bold my-2 text-xl">{item.name}</h3>
+                      <p className="flex-1 text-gray-700">{item.description}</p>
+                      <div className="flex items-end">
+                        <p className="flex-1 text-gray-900 font-medium mt-2">
+                          ${item.price}
+                        </p>
+                        <div
+                          className={
+                            "flex justify-center items-center " +
+                            (this.state.telemetry_data.version === "b"
+                              ? "hidden"
+                              : "")
+                          }
+                        >
+                          <svg
+                            className="h-6 w-6 text-gray-400 group-hover:text-[#c75260] transition-all duration-100"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              fill="currentColor"
+                              d="M11 9H13V6H16V4H13V1H11V4H8V6H11M7 18C5.9 18 5 18.9 5 20S5.9 22 7 22 9 21.1 9 20 8.1 18 7 18M17 18C15.9 18 15 18.9 15 20S15.9 22 17 22 19 21.1 19 20 18.1 18 17 18M7.2 14.8V14.7L8.1 13H15.5C16.2 13 16.9 12.6 17.2 12L21.1 5L19.4 4L15.5 11H8.5L4.3 2H1V4H3L6.6 11.6L5.2 14C5.1 14.3 5 14.6 5 15C5 16.1 5.9 17 7 17H19V15H7.4C7.3 15 7.2 14.9 7.2 14.8Z"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    {item.image ? (
+                      <div
+                        className="w-32 h-40 flex-none bg-cover bg-center"
+                        style={{ backgroundImage: `url(${item.image})` }}
+                      ></div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div
+          className={
+            "self-start sticky top-0 " +
+            (this.state.telemetry_data.version === "b" ? "hidden" : "")
+          }
+        >
+          <p className="font-bold text-5xl">&nbsp;</p>
+          <p className="font-medium text-4xl mt-12 mb-8">&nbsp;</p>
+          <this.ShoppingCart fixedY={true} />
+        </div>
+      </div>
+    );
+  };
+
+  Complete = (props) => {
+    return (
+      <div className="flex flex-col flex-1 bg-gray-200 py-16 text-center">
+        <div className="mt-16 text-7xl font-bold mb-4">
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+            Thank you!
+          </span>{" "}
+          🎉
+        </div>
+        <div className="max-w-5xl mx-auto text-lg my-4">
+          Thanks for participating in this in-class activity! Your data has been
+          successfully transmitted to our telemetry server. After class today,
+          you will receive the data generated from this A/B test. If you would
+          like to identify your data within the full dataset, write down your
+          UID ({this.state.telemetry_data.uid}).
+        </div>
+        <div className="max-w-5xl mx-auto text-lg my-4">
+          The statistical analysis portion of the week's assignment is an
+          individual assignment and must be submitted separately by all
+          students.
+        </div>
+        <div className="max-w-5xl mx-auto text-lg my-4">
+          Please close this window and do not re-visit this webpage before class
+          ends.
+        </div>
+      </div>
+    );
+  };
+
+  render() {
+    if (this.state.modal_visible || this.state.cart_visible) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return (
+      <>
+        <Toaster />
+        <div className="flex">
+          <this.SideBar />
+          {!this.state.complete ? (
+            <>
+              <this.FixedElements />
+              <this.Shop />
+            </>
+          ) : (
+            <this.Complete />
+          )}
+        </div>
+      </>
     );
   }
 }
