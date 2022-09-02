@@ -251,9 +251,13 @@ export class App extends Component {
         },
         () => {
           this.saveCookies();
-          this.sendTelemetry().then((res) => {
-            reject(res);
-          });
+          this.sendTelemetry()
+            .then((res) => {
+              resolve(res);
+            })
+            .catch((err) => {
+              reject(err);
+            });
         }
       )
     );
@@ -269,18 +273,40 @@ export class App extends Component {
   };
 
   checkout = () => {
-    this.addAction("checkout")
-      .then((res) => {
-        if (res.status === 200) {
-          cookies.remove("telemetry_data");
-          this.setState({
-            complete: true,
+    this.toggleCartPopup(true);
+    this.setTelemetryState(TelemetryStatus.SENDING);
+    toast.promise(
+      new Promise((resolve, reject) => {
+        this.addAction("checkout")
+          .then((res) => {
+            // wait 1 second for safety before destroying cookies and resolving
+            setTimeout(() => {
+              cookies.remove("telemetry_data");
+              this.setState({
+                complete: true,
+              });
+              resolve(res);
+            }, 1000);
+          })
+          .catch((err) => {
+            this.setTelemetryState(TelemetryStatus.ERROR);
+            reject(err);
           });
-        }
-      })
-      .catch((err) => {
-        this.setTelemetryState(TelemetryStatus.ERROR);
-      });
+      }),
+      {
+        loading: "Sending final data...",
+        success: "Data sent!",
+        error: "Please try again.",
+      },
+      {
+        style: {
+          minWidth: "250px",
+        },
+        success: {
+          duration: 5000,
+        },
+      }
+    );
   };
 
   toggleCartPopup = (to_on) => {
@@ -403,8 +429,9 @@ export class App extends Component {
             </div>
           </div>
           <button
-            className="bg-black text-white font-medium py-3 w-full hover:bg-gray-800 transition-all duration-75"
+            className="bg-black text-white font-medium py-3 w-full hover:bg-gray-800 transition-all duration-100 disabled:bg-gray-400 disabled:cursor-not-allowed"
             onClick={() => this.checkout()}
+            disabled={Object.keys(this.state.telemetry_data.data.cart).length === 0}
           >
             Checkout
           </button>
@@ -419,8 +446,8 @@ export class App extends Component {
         {/* Shopping cart icon for version B */}
         <button
           className={
-            "fixed flex items-center justify-center w-14 h-14 top-0 right-0 mr-8 mt-8 bg-black rounded-full hover:bg-gray-800 transition-all duration-100 " +
-            (this.state.telemetry_data.version === "a" ? "hidden" : "")
+            "fixed flex items-center justify-center w-14 h-14 top-0 right-0 mt-8 bg-black rounded-full hover:bg-gray-800 transition-colors duration-100 " +
+            (this.state.telemetry_data.version === "a" ? "hidden " : "") + (this.state.cart_visible || this.state.modal_visible ? "mr-[40px]" : "mr-8")
           }
           onClick={() => this.toggleCartPopup(true)}
         >
