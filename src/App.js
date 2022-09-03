@@ -113,6 +113,8 @@ export class App extends Component {
       telemetry_status: TelemetryStatus.CONNECTING,
       cart_visible: false,
       modal_visible: false,
+      modal_content: { name: "", description: "", image: "", price: "" },
+      modal_qty: 1,
       complete: false,
     };
   }
@@ -327,12 +329,13 @@ export class App extends Component {
 
   toggleModal = (to_on) => {
     if (to_on === undefined) {
-      this.setState({
-        modal_visible: !this.state.modal_visible,
-      });
-    } else if (to_on) {
+      to_on = !this.state.modal_visible;
+    }
+
+    if (to_on) {
       this.setState({
         modal_visible: true,
+        modal_qty: 1,
       });
     } else {
       this.setState({
@@ -343,7 +346,10 @@ export class App extends Component {
 
   setModalContent = (id) => {
     this.setState({
-      modal_content: id,
+      modal_content: {
+        ...this.getItemFromID(id.split("-")[0], id.split("-")[1]),
+        id: id,
+      },
     });
   };
 
@@ -351,6 +357,18 @@ export class App extends Component {
     this.setState({
       telemetry_status: status,
     });
+  };
+
+  updateModalQty = (delta) => {
+    if (this.state.modal_qty + delta > 0) {
+      this.setState({ modal_qty: this.state.modal_qty + delta });
+    } else {
+      this.setState({ modal_qty: 1 });
+    }
+  };
+
+  getItemFromID = (sectionid, itemid) => {
+    return menu[sectionid].items[itemid];
   };
 
   ShoppingCart = (props) => {
@@ -425,13 +443,15 @@ export class App extends Component {
           <div className="flex justify-between items-center mb-4">
             <div className="flex-1 text-gray-900 font-medium">Order Total:</div>
             <div className="flex-1 text-right text-gray-900 font-medium">
-              {`$${this.state.telemetry_data.data.cart_total}`}
+              {`$${this.state.telemetry_data.data.cart_total?.toFixed(2)}`}
             </div>
           </div>
           <button
             className="bg-black text-white font-medium py-3 w-full hover:bg-gray-800 transition-all duration-100 disabled:bg-gray-400 disabled:cursor-not-allowed"
             onClick={() => this.checkout()}
-            disabled={Object.keys(this.state.telemetry_data.data.cart).length === 0}
+            disabled={
+              Object.keys(this.state.telemetry_data.data.cart).length === 0
+            }
           >
             Checkout
           </button>
@@ -447,7 +467,10 @@ export class App extends Component {
         <button
           className={
             "fixed flex items-center justify-center w-14 h-14 top-0 right-0 mt-8 bg-black rounded-full hover:bg-gray-800 transition-colors duration-100 " +
-            (this.state.telemetry_data.version === "a" ? "hidden " : "") + (this.state.cart_visible || this.state.modal_visible ? "mr-[40px]" : "mr-8")
+            (this.state.telemetry_data.version === "a" ? "hidden " : "") +
+            (this.state.cart_visible || this.state.modal_visible
+              ? "mr-[40px]"
+              : "mr-8")
           }
           onClick={() => this.toggleCartPopup(true)}
         >
@@ -542,7 +565,14 @@ export class App extends Component {
                 {item.items.map((item, j) => (
                   <div
                     className="flex bg-white rounded-md drop-shadow transition-all duration-100 group hover:bg-gray-100 cursor-pointer overflow-hidden"
-                    onClick={() => this.updateCart(i, j, 1)}
+                    onClick={() => {
+                      if (this.state.telemetry_data.version === "a") {
+                        this.updateCart(i, j, 1);
+                      } else {
+                        this.setModalContent(i + "-" + j);
+                        this.toggleModal(true);
+                      }
+                    }}
                     key={`card-${i}-${j}`}
                   >
                     <div className="flex flex-col flex-1 px-4 py-2">
@@ -593,6 +623,94 @@ export class App extends Component {
           <p className="font-bold text-5xl">&nbsp;</p>
           <p className="font-medium text-4xl mt-12 mb-8">&nbsp;</p>
           <this.ShoppingCart fixedY={true} />
+        </div>
+      </div>
+    );
+  };
+
+  Modal = (props) => {
+    return (
+      <div className="fixed top-0 left-0 right-0 bottom-0 flex items-center justify-center z-20 pointer-events-none">
+        <div
+          className={
+            "bg-white rounded-md p-4 w-[36rem] flex flex-col duration-100 " +
+            (this.state.modal_visible
+              ? "opacity-100 pointer-events-auto"
+              : "opacity-0")
+          }
+        >
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-2xl">
+              {this.state.modal_content.name}
+            </div>
+            <button
+              className="rounded-full bg-black bg-opacity-0 p-2 hover:bg-opacity-10 transition-colors duration-100"
+              onClick={() => this.toggleModal(false)}
+            >
+              <svg className="w-6 h-6" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div className="mt-6 mb-4">
+            <img
+              src={this.state.modal_content.image}
+              alt={this.state.modal_content.name}
+              className="w-full aspect-video object-cover"
+            />
+          </div>
+          <div className="mb-2">
+            <p className="text-gray-700">
+              {this.state.modal_content.description}
+            </p>
+          </div>
+          <div className="flex flex-col">
+            <div className="w-full text-gray-700 text-sm font-semibold mb-1">
+              Quantity:
+            </div>
+            <div className="flex flex-row h-8 w-24 rounded-lg relative bg-transparent">
+              <button
+                className=" bg-gray-300 text-gray-600 hover:text-gray-700 hover:bg-gray-400 h-full w-20 rounded-l cursor-pointer outline-none"
+                onClick={() => {
+                  this.updateModalQty(-1);
+                }}
+              >
+                <span className="m-auto text-2xl font-light">−</span>
+              </button>
+              <div className="outline-none text-center w-full bg-gray-300 font-semibold text-md hover:text-black focus:text-black text-gray-700 leading-[2rem]">
+                {this.state.modal_qty}
+              </div>
+              <button
+                className="bg-gray-300 text-gray-600 hover:text-gray-700 hover:bg-gray-400 h-full w-20 rounded-r cursor-pointer"
+                onClick={() => {
+                  this.updateModalQty(1);
+                }}
+              >
+                <span className="m-auto text-2xl font-light">+</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex mt-8 ">
+            <div className="flex-1 text-black font-semibold mt-auto">{`Item Total: $${(
+              this.state.modal_content.price * this.state.modal_qty
+            )?.toFixed(2)}`}</div>
+            <button
+              className="bg-black text-white font-medium px-4 py-2 hover:bg-gray-800 transition-all duration-100 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              onClick={() => {
+                this.updateCart(
+                  this.state.modal_content.id.split("-")[0],
+                  this.state.modal_content.id.split("-")[1],
+                  this.state.modal_qty
+                );
+                this.toggleModal(false);
+              }}
+            >
+              Add to Cart
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -662,6 +780,7 @@ export class App extends Component {
           {!this.state.complete ? (
             <>
               <this.FixedElements />
+              <this.Modal />
               <this.Shop />
             </>
           ) : (
