@@ -121,7 +121,7 @@ export class App extends Component {
 
   componentDidMount() {
     axios
-      .get(`http://localhost:3001`)
+      .get(`https://cs1300.brownesports.org`)
       .then((res) => {
         const data = res.data;
         if (data === "CS 1300 - User Interfaces and User Experiences") {
@@ -213,7 +213,7 @@ export class App extends Component {
     // this.setTelemetryState(TelemetryStatus.SENDING);
     return new Promise((resolve, reject) =>
       axios
-        .post(`http://localhost:3001`, this.state.telemetry_data)
+        .post(`https://cs1300.brownesports.org`, this.state.telemetry_data)
         .then((res) => {
           if (res.status === 200) {
             this.setTelemetryState(TelemetryStatus.ONLINE);
@@ -516,7 +516,7 @@ export class App extends Component {
             (this.state.cart_visible ? "translate-x-0" : "translate-x-full")
           }
         >
-          <this.ShoppingCart />
+          {this.ShoppingCart({})}
         </div>
       </>
     );
@@ -536,7 +536,7 @@ export class App extends Component {
           <span className="uppercase">{this.state.telemetry_data.version}</span>
         </div>
         <div className="p-4 flex">
-          <this.TelemetryIndicator status={this.state.telemetry_status} />
+          {this.TelemetryIndicator({status: this.state.telemetry_status})}
           <div className="flex-1"></div>
           <button
             className="px-2 py-1 text-xs text-red-500 bg-opacity-25 rounded-full bg-red-500 ml-2"
@@ -622,7 +622,8 @@ export class App extends Component {
         >
           <p className="font-bold text-5xl">&nbsp;</p>
           <p className="font-medium text-4xl mt-12 mb-8">&nbsp;</p>
-          <this.ShoppingCart fixedY={true} />
+          {/* <this.ShoppingCart fixedY={true} /> */}
+          {this.ShoppingCart({ fixedY: true })}
         </div>
       </div>
     );
@@ -776,15 +777,16 @@ export class App extends Component {
       <>
         <Toaster />
         <div className="flex">
-          <this.SideBar />
+          {/* You HAVE to use this weird syntax as opposed to <this.SideBar /> or the production build crashes! */}
+          {this.SideBar()}
           {!this.state.complete ? (
             <>
-              <this.FixedElements />
-              <this.Modal />
-              <this.Shop />
+              {this.FixedElements()}
+              {this.Modal()}
+              {this.Shop()}
             </>
           ) : (
-            <this.Complete />
+            <>{this.Complete()}</>
           )}
         </div>
       </>
