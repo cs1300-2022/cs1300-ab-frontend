@@ -1,4 +1,6 @@
-# Getting Started with Create React App
+# CS1300 In-Class A/B Testing Demo
+
+**This repository is not for student use.** It is only public so we can host the site with Github Pages.
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
